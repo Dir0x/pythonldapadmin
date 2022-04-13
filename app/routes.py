@@ -1,9 +1,7 @@
-from flask import Flask, session, request
+from app import app
+from flask import session, request
 import ldap
 
-app = Flask(__name__)
-
-app.secret_key = '5aBniNA&NR#b1a6gLnl!!L0j8GXm.A#CP1t4ccWpTq@8cureeB'
 base = "dc=dharo, dc=local"
 
 @app.route('/login',methods=['GET', 'POST'])
@@ -85,6 +83,3 @@ def home():
 		return response
 	else:
 		return "you must authenticate"
-
-if __name__ == "__main__":
-	app.run(host="0.0.0.0", port=4000, debug=True)
