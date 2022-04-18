@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>{{ title }} - pythonldapadmin</title>
+</head>
+<body>
+	<h1>pythonldapadmin</h1>
+	<h2>Logged in as: {{ user }}</h2>
+	{{ tree|safe }}
+	<ul style="list-style-type: none; margin: 0; padding: 0;">
+		<li><a href="/">Home</a></li>
+		<li><a href="/add_user">Add user</a></li>
+		<li><a href="/login">Login</a></li>
+		<li><a href="/logout">Logout</a></li>
+	</ul> 
+</body>
+</html>
