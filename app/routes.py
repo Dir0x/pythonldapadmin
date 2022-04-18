@@ -1,9 +1,7 @@
 from app import app
-from flask import session, request, render_template, url_for, redirect
+from flask import session, request, render_template, url_for, redirect, flash
 import ldap
 from passlib.hash import ldap_md5_crypt
-
-base = "dc=dharo, dc=local"
 
 # Crear sección de ajustes para definir variables como directorio de usuarios
 # OU por defecto en ajustes
@@ -11,30 +9,33 @@ base = "dc=dharo, dc=local"
 
 @app.route('/login',methods=['GET', 'POST'])
 def login():
-	response = ""
 	if request.method == "POST":
 		login_username = request.form['user']
 		login_password = request.form['password']
 		address = request.form['address']
-		
+		login_domain = "dc=" + request.form['domain'].replace(".", ",dc=")
+
 		try:
 			l = ldap.initialize("ldap://" + address)
-			bind = l.simple_bind_s("cn=" + login_username + "," + base, login_password)
+			bind = l.simple_bind_s("cn=" + login_username + "," + login_domain, login_password)
 			if str(bind) == "(97, [], 1, [])":
 				session['user'] = login_username
 				session['address'] = address
-				session['bind'] = bind
+				session['password'] = login_password
 				session['address'] = address
-				response += "Logged in as: " + session['user']
-		except:
-			response = response + "Invalid credentials"
+				session['domain'] = login_domain
+				flash("Logged in as: " + session['user'])
+				return redirect(url_for('home'))
+		except ldap.INVALID_CREDENTIALS:
+			flash("Invalid credentials")
+		except ldap.SERVER_DOWN:
+			flash("Can't contact LDAP server")
+		return redirect(url_for('login'))
 	else:
 		if not 'user' in session:
-			response += "<form method='POST'><input type='text' name='user'/><input type='password' name='password'/><input type='text' name='address'/><input type='submit'/></form>"
+			return render_template('login.html')
 		else:
-			response += "Logged in as: " + session['user']
-
-	return response
+			return redirect(url_for('home'))
 
 @app.route('/logout', methods=['GET'])
 def logout():
@@ -59,6 +60,7 @@ def add_user():
 		password2 = request.form['password2']
 		uid = request.form['uid']
 		if password1 != password2:
+			flash("Las contraseñas deben coincidir")
 			return redirect(url_for('add_user'))
 		hash = ldap_md5_crypt.hash(password1)
 		entry = []
@@ -75,23 +77,23 @@ def add_user():
 		try:
 			try:
 				l = ldap.initialize("ldap://" + session['address'])
-				bind = l.simple_bind_s("cn=" + "admin" + "," + base, "admin")
+				bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
 			except:
-				return "conexión fallida"
-				
-			l.add_s("cn=" + fullname + ",dc=dharo,dc=local", entry)
-			return "exito"
-		except:
-			return "error"
+				flash("conexión fallida")
 
-#		return redirect(url_for('home'))
+			l.add_s("cn=" + fullname + ",dc=dharo,dc=local", entry)
+			flash("exito")
+			return redirect(url_for('home'))
+		except:
+			flash("error")
+			return redirect(url_for('add_user'))
 
 @app.route("/", methods=['GET'])
 def home():
-	if 'bind' in session:
+	if 'user' in session:
 		response = ""
 		l = ldap.initialize("ldap://" + session['address'])
-		results = l.search_s(base, ldap.SCOPE_SUBTREE, "objectClass=*", [''])
+		results = l.search_s(session['domain'], ldap.SCOPE_SUBTREE, "objectClass=*", [''])
 		
 		new_results = []
 
@@ -138,4 +140,5 @@ def home():
 
 		return render_template('index.html', title='Home', user=session['user'], tree=response)
 	else:
-		return "you must authenticate"
+		flash("You must authenticate")
+		return redirect(url_for('login'))

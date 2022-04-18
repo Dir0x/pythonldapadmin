@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Login - pythonldapadmin</title>
+</head>
+<body>
+	{% with messages = get_flashed_messages() %}
+		{% if messages %}
+			{% for message in messages %}
+				{{ message }}
+			{% endfor %}
+		{% endif %}
+	{% endwith %}
+	<form method='POST'>
+		<label>Username: <input type='text' name='user'/></label><br/>
+		<label>Password: <input type='password' name='password'/></label><br/>
+		<label>IP Address: <input type='text' name='address'/></label><br/>
+		<label>Domain: <input type='text' name='domain'/></label><br/>
+		<input type='submit' value="Login"/>
+	</form>
+</body>
+</html>

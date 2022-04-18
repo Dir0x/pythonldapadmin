@@ -6,6 +6,13 @@
 <body>
 	<h1>pythonldapadmin</h1>
 	<h2>Logged in as: {{ user }}</h2>
+	{% with messages = get_flashed_messages() %}
+		{% if messages %}
+			{% for message in messages %}
+				{{ message }}
+			{% endfor %}
+		{% endif %}
+	{% endwith %}
 	{{ tree|safe }}
 	<ul style="list-style-type: none; margin: 0; padding: 0;">
 		<li><a href="/">Home</a></li>
