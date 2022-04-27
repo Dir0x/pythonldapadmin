@@ -1,11 +1,18 @@
 from app import app
 from flask import session, request, render_template, url_for, redirect, flash
-import ldap
+import ldap, time
 from passlib.hash import ldap_md5_crypt
 
+# To do
 # Crear sección de ajustes para definir variables como directorio de usuarios
 # OU por defecto en ajustes
 # modo no redirección en los ajustes para que te mande al home o no al añadir usuarios
+#
+# Modificar usuarios
+# Añadir grupos
+# Eliminar grupos
+# Modificar grupos
+# Mover usuarios entre grupos
 
 @app.route('/login',methods=['GET', 'POST'])
 def login():
@@ -45,7 +52,7 @@ def logout():
 @app.route('/modify/<name>', methods=['GET'])
 def modify(name):
 	
-	return name
+	return name + "<a href='/'>Home</a>"
 
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
@@ -82,11 +89,30 @@ def add_user():
 				flash("conexión fallida")
 
 			l.add_s("cn=" + fullname + ",dc=dharo,dc=local", entry)
-			flash("exito")
+			flash("done")
 			return redirect(url_for('home'))
 		except:
 			flash("error")
 			return redirect(url_for('add_user'))
+
+@app.route("/delete_user", methods=['POST'])
+def delete_user():
+	if request.form['user']:
+		try:
+			try:
+				l = ldap.initialize("ldap://" + session['address'])
+				bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
+			except:
+				flash("conexión fallida")
+
+			l.delete(request.form['user'])
+			flash("done")
+			time.sleep(1)
+			return redirect(url_for('home'))
+		except:
+			flash("error")
+			return redirect(url_for('delete_user'))
+
 
 @app.route("/", methods=['GET'])
 def home():
@@ -114,7 +140,11 @@ def home():
 			for i in range(len(result)):
 				printable = str(result[i]) + "," + printable
 			printable = printable[:-1]
-			printable = "<a href='modify/" + printable + "'>" + printable + "</a>"
+
+			if printable.startswith('cn='):
+				printable += "<a href='modify/" + printable + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + printable + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
+			else:
+				printable = "<a href='modify/" + printable + "'>" + printable + '</a>'
 
 			if len(result) == 2:
 				response += "<ul><li>" + printable
@@ -135,10 +165,10 @@ def home():
 			last = len(result)
 
 		while len(tags) != 0:
-			response += tags[0]
+			response += tags[0] + "\n"
 			tags.remove(tags[0])
 
-		return render_template('index.html', title='Home', user=session['user'], tree=response)
+		return render_template('index.html', user=session['user'], tree=response)
 	else:
 		flash("You must authenticate")
 		return redirect(url_for('login'))
