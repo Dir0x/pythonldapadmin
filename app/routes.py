@@ -2,6 +2,7 @@ from app import app
 from flask import session, request, render_template, url_for, redirect, flash
 import ldap, time
 from passlib.hash import ldap_md5_crypt
+import ldap.modlist as modlist
 
 # To do
 # Crear sección de ajustes para definir variables como directorio de usuarios
@@ -32,6 +33,7 @@ def login():
 				session['address'] = address
 				session['domain'] = login_domain
 				flash("Logged in as: " + session['user'])
+				l.unbind_s()
 				return redirect(url_for('home'))
 		except ldap.INVALID_CREDENTIALS:
 			flash("Invalid credentials")
@@ -49,10 +51,62 @@ def logout():
 	session.clear()
 	return redirect(url_for('home'))
 
-@app.route('/modify/<name>', methods=['GET'])
-def modify(name):
-	
-	return name + "<a href='/'>Home</a>"
+@app.route('/modify_user/<name>', methods=['GET', 'POST'])
+def modify_user(name):
+	value = ""
+	if 'user' in session:
+		if request.method == "GET":
+			l = ldap.initialize("ldap://" + session['address'])
+			bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
+			result = l.search_s(name, ldap.SCOPE_SUBTREE, "objectClass=*", ['*'])
+			l.unbind_s()
+
+			for item in result[0][1]:
+				value += '<label>' + item + ': <input type="text" name="' + item + '" value="' + str(result[0][1].get(item)) + '"/></label></br>'
+
+		elif request.method == "POST":
+			try:
+				l = ldap.initialize("ldap://" + session['address'])
+				bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
+				new_ldif = request.form.to_dict(flat=False)
+				old_ldif = l.search_s(name, ldap.SCOPE_SUBTREE, "objectClass=*", ['*'])[0][1]
+
+			except:
+				flash("Can't contact LDAP server")
+				return redirect(url_for('home'))
+
+			try:
+				diff_new = {}
+				diff_old = {}
+
+				for item in new_ldif:
+					if str(new_ldif[item][0]) == str(old_ldif[item]):
+						pass
+					else:
+						i = []
+						i.append(bytes(new_ldif[item][0][:-2][3:], 'UTF-8'))
+						diff_new[item] = i
+
+						i = []
+						i.append(old_ldif[item][0])
+						diff_old[item] = i
+				
+				ldif = modlist.modifyModlist(diff_old, diff_new)
+				l.modify_s(name,ldif)
+				l.unbind_s()
+
+				flash("Modification performed")
+				return redirect(url_for('home'))
+
+			except:
+				flash("Unable to perform the modification")
+				return redirect(url_for('home'))
+
+	else:
+		flash("You must authenticate")
+		return redirect(url_for('login'))
+
+	return render_template("modify_user.html", value=value)
 
 @app.route('/add_user', methods=['GET', 'POST'])
 def add_user():
@@ -87,8 +141,10 @@ def add_user():
 				bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
 			except:
 				flash("conexión fallida")
+				return redirect(url_for('add_user'))
 
 			l.add_s("cn=" + fullname + ",dc=dharo,dc=local", entry)
+			l.unbind_s()
 			flash("done")
 			return redirect(url_for('home'))
 		except:
@@ -106,6 +162,7 @@ def delete_user():
 				flash("conexión fallida")
 
 			l.delete(request.form['user'])
+			l.unbind_s()
 			flash("done")
 			time.sleep(1)
 			return redirect(url_for('home'))
@@ -136,15 +193,21 @@ def home():
 
 		for result in results:
 			printable = ""
+			inverted = ""
 
 			for i in range(len(result)):
-				printable = str(result[i]) + "," + printable
-			printable = printable[:-1]
+				inverted = str(result[i]) + "," + inverted
+			inverted = inverted[:-1]
+
+			if len(result) == 2:
+				printable = inverted
+			else:
+				printable = result[len(result)-1]
 
 			if printable.startswith('cn='):
-				printable += "<a href='modify/" + printable + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + printable + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
+				printable += " <a href='modify_user/" + inverted + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + printable + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
 			else:
-				printable = "<a href='modify/" + printable + "'>" + printable + '</a>'
+				printable = " <a href='modify_user/" + inverted + "'>" + printable + '</a>'
 
 			if len(result) == 2:
 				response += "<ul><li>" + printable
@@ -157,7 +220,7 @@ def home():
 			elif len(result) == last:
 				response += "</li><li>" + printable
 			elif len(result) < last:
-				response += "</li></ul></li><li>" + printable
+				response += "</li><a href='#'>Add object</a></ul></li><li>" + printable
 				tags.remove("</li>")
 				tags.remove("</ul>")
 				tags.remove("</li>")
@@ -165,8 +228,16 @@ def home():
 			last = len(result)
 
 		while len(tags) != 0:
-			response += tags[0] + "\n"
-			tags.remove(tags[0])
+			if len(tags) > 1:
+				if str(tags[0]) == "</ul>":
+					insert = "<li><a href='#'>Add object</a></li>" + tags[0]
+				else:
+					insert = tags[0]
+				response += insert + "\n"
+				tags.remove(tags[0])
+			else:
+				response += tags[0] + "\n"
+				tags.remove(tags[0])
 
 		return render_template('index.html', user=session['user'], tree=response)
 	else:
