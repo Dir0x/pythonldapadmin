@@ -9,7 +9,7 @@ import ldap.modlist as modlist
 # OU por defecto en ajustes
 # modo no redirección en los ajustes para que te mande al home o no al añadir usuarios
 #
-# Modificar usuarios
+# DONE Modificar usuarios
 # Añadir grupos
 # Eliminar grupos
 # Modificar grupos
@@ -83,13 +83,18 @@ def modify_user(name):
 					if str(new_ldif[item][0]) == str(old_ldif[item]):
 						pass
 					else:
-						i = []
-						i.append(bytes(new_ldif[item][0][:-2][3:], 'UTF-8'))
-						diff_new[item] = i
+						if item == "cn":
+							l.modrdn_s(name, 'cn=' + new_ldif[item][0][:-2][3:], True)
+							name = name.replace(name.split(",")[0], "cn=" + new_ldif[item][0][:-2][3:])
 
-						i = []
-						i.append(old_ldif[item][0])
-						diff_old[item] = i
+						else:
+							i = []
+							i.append(bytes(new_ldif[item][0][:-2][3:], 'UTF-8'))
+							diff_new[item] = i
+
+							i = []
+							i.append(old_ldif[item][0])
+							diff_old[item] = i
 				
 				ldif = modlist.modifyModlist(diff_old, diff_new)
 				l.modify_s(name,ldif)
@@ -140,15 +145,15 @@ def add_user():
 				l = ldap.initialize("ldap://" + session['address'])
 				bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
 			except:
-				flash("conexión fallida")
+				flash("Can't connect to LDAP server")
 				return redirect(url_for('add_user'))
 
 			l.add_s("cn=" + fullname + ",dc=dharo,dc=local", entry)
 			l.unbind_s()
-			flash("done")
+			flash("User added")
 			return redirect(url_for('home'))
 		except:
-			flash("error")
+			flash("An error occurred")
 			return redirect(url_for('add_user'))
 
 @app.route("/delete_user", methods=['POST'])
@@ -159,15 +164,15 @@ def delete_user():
 				l = ldap.initialize("ldap://" + session['address'])
 				bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
 			except:
-				flash("conexión fallida")
+				flash("Can't connect to LDAP server")
 
-			l.delete(request.form['user'])
+			l.delete(request.form['user']) # TBD revisar esto que no funca. añadir el dominio creo
 			l.unbind_s()
-			flash("done")
-			time.sleep(1)
+			flash("User deleted")
+			time.sleep(3)
 			return redirect(url_for('home'))
 		except:
-			flash("error")
+			flash("An error occurred")
 			return redirect(url_for('delete_user'))
 
 
@@ -207,7 +212,8 @@ def home():
 			if printable.startswith('cn='):
 				printable += " <a href='modify_user/" + inverted + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + printable + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
 			else:
-				printable = " <a href='modify_user/" + inverted + "'>" + printable + '</a>'
+				printable += " <a href='modify_user/" + inverted + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + printable + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
+#				printable = " <a href='modify_user/" + inverted + "'>" + printable + '</a>'
 
 			if len(result) == 2:
 				response += "<ul><li>" + printable
