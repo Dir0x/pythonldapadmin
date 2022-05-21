@@ -11,7 +11,9 @@
 			{% endfor %}
 		{% endif %}
 	{% endwith %}
-	<form method="POST">
+	<h1>Create user</h1>
+	<form method="POST" action="/add_user">
+		{% if request.args.get('parent') %}<input type="hidden" name="parent" value="{{ request.args.get('parent') }}"/>{% endif %}
 		<label>Username: <input type="text" name="username" placeholder="username"></label><br/>
 		<label>GID: <input type="number" name="gid" placeholder="000"></label><br/>
 		<label>UID: <input type="number" name="uid" placeholder="000"></label><br/>
@@ -21,5 +23,15 @@
 		<label>Confirm password: <input type="password" name="password2" placeholder="**********"></label><br/>
 		<input type="submit" value="Enviar">
 	</form>
+
+	<h1>Create group</h1>
+	<form method="POST" action="/add_group">
+		{% if request.args.get('parent') %}<input type="hidden" name="parent" value="{{ request.args.get('parent') }}"/>{% endif %}
+		<label>CN: <input type="text" name="cn" placeholder="group"></label><br/>
+		<label>GID: <input type="number" name="gid" placeholder="000"></label><br/>
+		<input type="submit" value="Enviar">
+	</form>
+
+	<br/><a href="/">Inicio</a>
 </body>
 </html>
