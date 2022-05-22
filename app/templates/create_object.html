@@ -32,6 +32,13 @@
 		<input type="submit" value="Enviar">
 	</form>
 
+	<h1>Create OU</h1>
+	<form method="POST" action="/add_ou">
+		{% if request.args.get('parent') %}<input type="hidden" name="parent" value="{{ request.args.get('parent') }}"/>{% endif %}
+		<label>OU name: <input type="text" name="ou" placeholder="ou"></label><br/>
+		<input type="submit" value="Enviar">
+	</form>
+
 	<br/><a href="/">Inicio</a>
 </body>
 </html>

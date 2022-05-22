@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>Add user</title>
+</head>
+<body>
+	{% with messages = get_flashed_messages() %}
+		{% if messages %}
+			{% for message in messages %}
+				{{ message }}
+			{% endfor %}
+		{% endif %}
+	{% endwith %}
+	<form method="POST" action="/do_move">
+		<label>Original <input type="text" name="original" value="{{ original }}"></label><br/>
+		<label>CN <input type="text" name="cn" value="{{ cn }}"></label><br/>
+		<label>Destination <input type="text" name="destination" placeholder="ou=users,dc=domain,dc=local"></label>
+		<input type="submit" value="Enviar">
+	</form>
+	<a href="/">Home</a>
+</body>
+</html>

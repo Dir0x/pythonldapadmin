@@ -4,10 +4,6 @@ import ldap, time
 from passlib.hash import ldap_md5_crypt
 import ldap.modlist as modlist
 
-# To do
-# Mover usuarios entre OUs
-# Añadir OUs
-
 @app.route('/login',methods=['GET', 'POST'])
 def login():
 	if request.method == "POST":
@@ -44,8 +40,8 @@ def logout():
 	session.clear()
 	return redirect(url_for('home'))
 
-@app.route('/modify_user/<name>', methods=['GET', 'POST'])
-def modify_user(name):
+@app.route('/modify/<name>', methods=['GET', 'POST'])
+def modify(name):
 	value = ""
 	if 'user' in session:
 		if request.method == "GET":
@@ -104,7 +100,7 @@ def modify_user(name):
 		flash("You must authenticate")
 		return redirect(url_for('login'))
 
-	return render_template("modify_user.html", value=value)
+	return render_template("modify.html", value=value)
 
 @app.route('/create_object')
 def create_object():
@@ -189,10 +185,35 @@ def add_group():
 		flash("An error occurred")
 		return redirect(url_for('home'))
 
-	return parent
+@app.route("/add_ou", methods=['POST'])
+def add_ou():
+	try:
+		l = ldap.initialize("ldap://" + session['address'])
+		bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
+	except:
+		flash("Can't connect to LDAP server")
+		return redirect(url_for('home'))
+		
+	entry = [('objectClass', [b'organizationalUnit', b'top']), 
+				('ou', [bytes(request.form['ou'], 'UTF-8')])]
 
-@app.route("/delete_user", methods=['POST'])
-def delete_user():
+	if 'parent' in request.form:
+		parent = request.form['parent']
+
+	else:
+		parent = session['domain']
+	try:
+		l.add_s("ou=" + request.form['ou'] + "," + parent ,entry)
+		l.unbind_s()
+		flash("OU created")
+		return redirect(url_for('home'))
+
+	except:
+		flash("An error occurred")
+		return redirect(url_for('home'))
+
+@app.route("/delete", methods=['POST'])
+def delete():
 	if request.form['user']:
 		try:
 			try:
@@ -214,9 +235,32 @@ def delete_user():
 
 		except:
 			flash("An error occurred")
-			return redirect(url_for('delete_user'))
+			return redirect(url_for('delete'))
 
+@app.route("/move", methods=['POST'])
+def move():
+	original = request.form['user']
+	cn = request.form['user'].split(',')[0]
+	# form en move.html que mande a otro endpoint y que haga el move
+	return render_template('move.html', original=original, cn=cn)
 
+@app.route("/do_move", methods=['POST'])
+def do_move():
+	try:
+		l = ldap.initialize("ldap://" + session['address'])
+		bind = l.simple_bind_s("cn=" + session['user'] + "," + session['domain'], session['password'])
+	
+	except:
+		flash("Cannot bind to LDAP server")
+		return redirect(url_for('home'))
+	
+	try:
+		l.rename_s(request.form['original'], request.form['cn'], request.form['destination'])
+		flash("Movement done")	
+	except:
+		flash("Unable perform the movement")
+	
+	return redirect(url_for('home'))
 @app.route("/", methods=['GET'])
 def home():
 	if 'user' in session:
@@ -252,12 +296,13 @@ def home():
 				printable = result[len(result)-1]
 
 			if printable.startswith('cn='):
-				printable += " <a href='modify_user/" + inverted + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
+				printable += " <a href='modify/" + inverted + "'>Modify" '</a><form action="/delete" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form><form action="/move" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/271/271222.png" alt="submit" width="20" height="20">\n</form>'
+
 			else:
 				if len(result) == 2:
-					printable = " <a href='modify_user/" + inverted + "'>" + printable + '</a>'
+					printable = " <a href='modify/" + inverted + "'>" + printable + '</a>'
 				else:
-					printable += " <a href='modify_user/" + inverted + "'>Modify" '</a><form action="/delete_user" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form>'
+					printable += " <a href='modify/" + inverted + "'>Modify" '</a><form action="/delete" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form><form action="/move" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/271/271222.png" alt="submit" width="20" height="20">\n</form>'
 
 			if len(result) == 2:
 				response += "<ul><li>" + printable
