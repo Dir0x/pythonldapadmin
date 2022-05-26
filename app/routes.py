@@ -1,8 +1,10 @@
 from app import app
 from flask import session, request, render_template, url_for, redirect, flash
-import ldap, time
+import ldap, time, sqlite3, os, datetime
 from passlib.hash import ldap_md5_crypt
 import ldap.modlist as modlist
+
+db_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), '../app.db')
 
 @app.route('/login',methods=['GET', 'POST'])
 def login():
@@ -15,20 +17,29 @@ def login():
 		try:
 			l = ldap.initialize("ldap://" + address)
 			bind = l.simple_bind_s("cn=" + login_username + "," + login_domain, login_password)
-			if str(bind) == "(97, [], 1, [])":
-				session['user'] = login_username
-				session['address'] = address
-				session['password'] = login_password
-				session['address'] = address
-				session['domain'] = login_domain
-				flash("Logged in as: " + session['user'])
-				l.unbind_s()
-				return redirect(url_for('home'))
 		except ldap.INVALID_CREDENTIALS:
 			flash("Invalid credentials")
+			return redirect(url_for('login'))
+
 		except ldap.SERVER_DOWN:
 			flash("Can't contact LDAP server")
-		return redirect(url_for('login'))
+			return redirect(url_for('login'))
+
+		session['user'] = login_username
+		session['address'] = address
+		session['password'] = login_password
+		session['address'] = address
+		session['domain'] = login_domain
+
+		connection = sqlite3.connect(db_path)
+		cursor = connection.cursor()
+		cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'login', session['user']))
+		connection.commit()
+		connection.close()
+
+		flash("Logged in as: " + session['user'])
+		l.unbind_s()
+		return redirect(url_for('home'))
 	else:
 		if not 'user' in session:
 			return render_template('login.html')
@@ -75,6 +86,15 @@ def modify(name):
 						if item == "cn":
 							l.modrdn_s(name, 'cn=' + new_ldif[item][0][:-2][3:], True)
 							name = name.replace(name.split(",")[0], "cn=" + new_ldif[item][0][:-2][3:])
+							
+							connection = sqlite3.connect(db_path)
+							cursor = connection.cursor()
+							cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'modification', session['user']))
+							cursor.execute("select last_insert_rowid()")
+							last_id = cursor.fetchone()[0]
+							cursor.execute("insert into modifications(modified_user, new_ldif, old_ldif, event_id) values (?, ?, ?, ?)", (name, str('cn=' + new_ldif[item][0][:-2][3:]), name, last_id))
+							connection.commit()
+							connection.close()
 
 						else:
 							i = []
@@ -88,6 +108,15 @@ def modify(name):
 				ldif = modlist.modifyModlist(diff_old, diff_new)
 				l.modify_s(name,ldif)
 				l.unbind_s()
+
+				connection = sqlite3.connect(db_path)
+				cursor = connection.cursor()
+				cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'modification', session['user']))
+				cursor.execute("select last_insert_rowid()")
+				last_id = cursor.fetchone()[0]
+				cursor.execute("insert into modifications(modified_user, new_ldif, old_ldif, event_id) values (?, ?, ?, ?)", (name, str(diff_new), str(diff_old), last_id))
+				connection.commit()
+				connection.close()
 
 				flash("Modification performed")
 				return redirect(url_for('home'))
@@ -142,13 +171,22 @@ def add_user():
 
 	if 'parent' in request.form:
 		parent = request.form['parent']
-
 	else:
 		parent = session['domain']
 
 	try:
 		l.add_s("cn=" + fullname + "," + parent, entry)
 		l.unbind_s()
+
+		connection = sqlite3.connect(db_path)
+		cursor = connection.cursor()
+		cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'add_object', session['user']))
+		cursor.execute("select last_insert_rowid()")
+		last_id = cursor.fetchone()[0]
+		cursor.execute("insert into add_object(full_dn, ldif, type, event_id) values (?, ?, ?, ?)", ("cn=" + fullname + "," + parent, str(entry), 'user', last_id))
+		connection.commit()
+		connection.close()
+
 		flash("User added")
 		return redirect(url_for('home'))
 
@@ -178,6 +216,16 @@ def add_group():
 	try:
 		l.add_s("cn=" + request.form['cn'] + "," + parent ,entry)
 		l.unbind_s()
+
+		connection = sqlite3.connect(db_path)
+		cursor = connection.cursor()
+		cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'add_object', session['user']))
+		cursor.execute("select last_insert_rowid()")
+		last_id = cursor.fetchone()[0]
+		cursor.execute("insert into add_object(full_dn, ldif, type, event_id) values (?, ?, ?, ?)", ("cn=" + request.form['cn'] + "," + parent, str(entry), 'group', last_id))
+		connection.commit()
+		connection.close()
+
 		flash("Group created")
 		return redirect(url_for('home'))
 
@@ -205,6 +253,16 @@ def add_ou():
 	try:
 		l.add_s("ou=" + request.form['ou'] + "," + parent ,entry)
 		l.unbind_s()
+
+		connection = sqlite3.connect(db_path)
+		cursor = connection.cursor()
+		cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'add_object', session['user']))
+		cursor.execute("select last_insert_rowid()")
+		last_id = cursor.fetchone()[0]
+		cursor.execute("insert into add_object(full_dn, ldif, type, event_id) values (?, ?, ?, ?)", ("ou=" + request.form['ou'] + "," + parent, str(entry), 'ou', last_id))
+		connection.commit()
+		connection.close()
+
 		flash("OU created")
 		return redirect(url_for('home'))
 
@@ -226,6 +284,16 @@ def delete():
 			try:
 				l.delete(request.form['user'])
 				l.unbind_s()
+
+				connection = sqlite3.connect(db_path)
+				cursor = connection.cursor()
+				cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'delete_object', session['user']))
+				cursor.execute("select last_insert_rowid()")
+				last_id = cursor.fetchone()[0]
+				cursor.execute("insert into delete_object(full_dn, event_id) values (?, ?)", (request.form['user'], last_id))
+				connection.commit()
+				connection.close()
+
 				flash("User deleted")
 				time.sleep(1)
 				return redirect(url_for('home'))
@@ -241,7 +309,6 @@ def delete():
 def move():
 	original = request.form['user']
 	cn = request.form['user'].split(',')[0]
-	# form en move.html que mande a otro endpoint y que haga el move
 	return render_template('move.html', original=original, cn=cn)
 
 @app.route("/do_move", methods=['POST'])
@@ -256,6 +323,16 @@ def do_move():
 	
 	try:
 		l.rename_s(request.form['original'], request.form['cn'], request.form['destination'])
+
+		connection = sqlite3.connect(db_path)
+		cursor = connection.cursor()
+		cursor.execute("insert into events(timestamp, type, do_user) values (?, ?, ?)", (datetime.datetime.now().strftime('%d-%b-%Y (%H:%M:%S.%f)'), 'move_object', session['user']))
+		cursor.execute("select last_insert_rowid()")
+		last_id = cursor.fetchone()[0]
+		cursor.execute("insert into move_object(original, cn, destination, event_id) values (?, ?, ?, ?)", (request.form['original'], request.form['cn'], request.form['destination'], last_id))
+		connection.commit()
+		connection.close()
+
 		flash("Movement done")	
 	except:
 		flash("Unable perform the movement")
