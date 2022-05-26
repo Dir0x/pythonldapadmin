@@ -373,13 +373,13 @@ def home():
 				printable = result[len(result)-1]
 
 			if printable.startswith('cn='):
-				printable += " <a href='modify/" + inverted + "'>Modify" '</a><form action="/delete" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form><form action="/move" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/271/271222.png" alt="submit" width="20" height="20">\n</form>'
+				printable += " <a href='modify/" + inverted + "'>Modify" '</a><form action="/delete" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="static/trash.png" alt="submit" width="20" height="20">\n</form><form action="/move" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="static/move.png" alt="submit" width="20" height="20">\n</form>'
 
 			else:
 				if len(result) == 2:
 					printable = " <a href='modify/" + inverted + "'>" + printable + '</a>'
 				else:
-					printable += " <a href='modify/" + inverted + "'>Modify" '</a><form action="/delete" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/58/58326.png" alt="submit" width="20" height="20">\n</form><form action="/move" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="https://cdn-icons-png.flaticon.com/512/271/271222.png" alt="submit" width="20" height="20">\n</form>'
+					printable += " <a href='modify/" + inverted + "'>Modify" '</a><form action="/delete" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="static/trash.png" alt="submit" width="20" height="20">\n</form><form action="/move" method="POST">\n	<input type="hidden" name="user" value="' + inverted + '">\n    <input type="image" src="static/move.png" alt="submit" width="20" height="20">\n</form>'
 
 			if len(result) == 2:
 				response += "<ul><li>" + printable
