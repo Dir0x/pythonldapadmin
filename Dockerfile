@@ -4,7 +4,11 @@ RUN useradd pythonldapadmin
 
 WORKDIR /home/pythonldapadmin
 
-COPY . app
+COPY app app
+COPY boot.sh app
+COPY config.py app
+COPY pythonldapadmin.py app
+COPY requirements.txt app
 
 run apt-get update -y
 run apt-get install build-essential python3-dev python2.7-dev \
